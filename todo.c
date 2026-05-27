@@ -1,218 +1,324 @@
 #include <stdio.h>
 #include <string.h>
-#include<time.h>
-#include<stdlib.h>
+#include <time.h>
+#include <stdlib.h>
 
-//任务名称长度
+// 常量定义
 #define NAME_LEN 20
-//描述最多 256 个字符
 #define MAX_DESC 256
+#define DATA_FILE "task.txt"      // 数据文件名称
 
+// 优先级枚举
+typedef enum {
+    PRIORITY_LOW = 1,
+    PRIORITY_MID = 2,
+    PRIORITY_HIGH = 3
+} Priority;
+
+// 跨平台支持
 #ifdef _WIN32
-    #include<windows.h>
+    #include <windows.h>
     #define CLEAR_SCREEN() system("cls")
     #define SLEEP(ms) Sleep(ms)
 #else
-    #include<unistd.h>
+    #include <unistd.h>
     #define CLEAR_SCREEN() system("clear")
-    #define SLEEP(ms) usleep((ms)*1000)
+    #define SLEEP(ms) usleep((ms) * 1000)
 #endif
 
-void init_data();
-// void load_data();
-void print_top(const char *p);
-//清除错误输入 !
-void clear_input_buffer();
-//开始任务
-// void start_focus();
-//新建任务 !
-void add_task();
-//删除任务 !
-void delete_task();
-// 检索任务并根据状态输出
-// 1->全部任务
-// 0->未完成任务
-void list_tasks(int state);
-//展示已完成任务 !
-// void complete_task();
-//今日工作统计
-// void show_today_report();
-//保存数据
-// void save_data();
-//扩容函数 !
-void expend_space();
-//获取最大id !
-int get_task_id();
-
-//typedef {原类型} 新别名
-//typedef 是 C 语言里用来给已有类型起个别名的关键字
-//它的作用就是让复杂的类型名变得更短、更好理解
-//我定义了一个结构体 Task 来表示任务，可以直接使用 Task 来声明变量
+// 数据结构
 typedef struct {
-    //任务编号
     int id;
-    //描述
     char description[MAX_DESC];
-    //事件优先级
-    int level;
-    //完成状态 0未完成 1已完成
-    int completed;
-    //完成任务的时间
+    int level;               // 1低 2中 3高
+    int completed;           // 0未完成 1已完成
     time_t completed_time;
-    //累计时长
-    int total_time;
-    //任务名称
+    int total_time;          // 累计专注时长（分钟）
     char name[NAME_LEN];
-}Task;
+} Task;
 
 typedef struct {
-    //申请所有任务的首地址
-    Task *items;
-    //目前已经存入的任务数量
-    int count;
-    //目前可存入的最大任务量
-    int capacity;
-}Taskarr;
+    Task *items;      // 动态数组
+    int count;        // 实际任务数
+    int capacity;     // 当前容量
+} TaskArr;
 
-//全局变量
-Taskarr tasks;
+// 全局变量
+TaskArr tasks;
 
-int main(){
-    //初始化数据容器
+// 函数声明
+void init_data(void);
+void load_data(void);
+void save_data(void);
+void free_tasks(void);
+void print_top(const char *p);
+void clear_input_buffer(void);
+int expend_space(void);
+int get_max_id(void);
+void add_task(void);
+void delete_task(void);
+void list_tasks(int state);
+
+// 主函数
+int main() {
     init_data();
-    //加载本地数据
-    // load_data();
-    //判断用户要做什么操做
+    load_data();          // 加载历史数据
+
     int condition;
-    do{
+    do {
         CLEAR_SCREEN();
         print_top("操作清单");
         printf("新建任务请输入1\n");
         printf("删除任务请输入2\n");
-        printf("查看任务清单（全部包含已完成）任务请输入3\n");
+        printf("查看全部任务（含已完成）请输入3\n");
         printf("查看未完成任务请输入5\n");
-        printf("退出请输-1\n");
+        printf("退出请输-1或者Ctrl+C\n");
         printf("等待输入...\n");
-        if(scanf("%d",&condition)!=1){
-            condition=-2;
+
+        if (scanf("%d", &condition) != 1) {
+            condition = -2;
             clear_input_buffer();
-            //清除错误输入
         }
-        switch(condition){
-            case 1:add_task(); break;
-            case 2:delete_task(); break;
-            case 3:list_tasks(1); break;
-            case 5:list_tasks(0); break;
-            case -1: printf("再见！\n"); break;
-            default :printf("输入数据有误请重新输入\n");
+
+        switch (condition) {
+            case 1: add_task(); break;
+            case 2: delete_task(); break;
+            case 3: list_tasks(1); break;
+            case 5: list_tasks(0); break;
+            case -1:
+                save_data();
+                printf("数据已保存，再见！\n");
+                break;
+            default:
+                printf("输入有误，请重新输入\n");
         }
-        if(condition==-1){
-            printf("回车后继续...\n");
-            getchar();
-            //卡住页面
+
+        if (condition != -1) {
+            printf("\n按回车键继续...");
+            getchar();  // 消耗残留换行
+            getchar();  // 等待用户按键
         }
-    }while(condition!=-1);
+    } while (condition != -1);
+
+    free_tasks();   // 释放内存
+    return 0;
 }
 
-void print_top(const char *p){
-    printf("<========%s========>\n",p);
-}
-void clear_input_buffer(){
-    char c;
-    while((c=getchar())!='\n'&&c!=EOF);
+// 打印标题
+void print_top(const char *p) {
+    printf("<========%s========>\n", p);
 }
 
+// 清除输入缓冲区，防止scanf后残留的换行符干扰后续输入
+void clear_input_buffer(void) {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF);
+}
 
-void add_task(){
-    if(tasks.count==tasks.capacity) {
-        expend_space();
+// 动态数组管理
+void init_data(void) {
+    tasks.items = NULL;
+    tasks.count = 0;
+    tasks.capacity = 0;
+}
+
+// 扩容：成功返回1，失败返回0
+int expend_space(void) {
+    int old_cap = tasks.capacity;
+    int new_cap = (old_cap == 0) ? 10 : old_cap * 2;
+    Task *temp = (Task*)realloc(tasks.items, new_cap * sizeof(Task));
+    if (temp == NULL) {
+        printf("内存扩容失败，无法添加新任务！\n");
+        return 0;
     }
-    tasks.items[tasks.count].id=get_task_id()+1;
-    printf("请输入任务名称\n");
-    fgets(tasks.items[tasks.count].name,NAME_LEN,stdin);
-    tasks.items[tasks.count].name[strcspn(tasks.items[tasks.count].name,"\n")]='\0';
-    
-    printf("请输入任务描述\n");
-    fgets(tasks.items[tasks.count].description,MAX_DESC,stdin);
-    tasks.items[tasks.count].description[strcspn(tasks.items[tasks.count].description,"\n")]='\0';
-    
-    printf("请输入任务优先级\n");
-    printf("1低\n");
-    printf("2中\n");
-    printf("3高\n");
-    do{
-        scanf("%d",&tasks.items[tasks.count].level);
-        clear_input_buffer();
-    }while(tasks.items[tasks.count].level<1||tasks.items[tasks.count].level>3);
-    tasks.items[tasks.count].completed_time=0;
-    tasks.items[tasks.count].completed=0;
-    tasks.items[tasks.count].total_time=0;
-    tasks.count++;
+    // 新分配的内存清零
+    if (new_cap > old_cap) {
+        memset(temp + old_cap, 0, (new_cap - old_cap) * sizeof(Task));
+    }
+    tasks.items = temp;
+    tasks.capacity = new_cap;
+    return 1;
 }
 
-void delete_task(){
-    int id;
-    printf("请输入要删除的任务id\n");
-    scanf("%d",&id);
+// 读取当前最大ID，确保新任务ID唯一且递增
+int get_max_id(void) {
+    int max = 0;
+    for (int i = 0; i < tasks.count; i++) {
+        if (tasks.items[i].id > max)
+            max = tasks.items[i].id;
+    }
+    return max;
+}
+
+// 释放动态数组内存
+void free_tasks(void) {
+    if (tasks.items) {
+        free(tasks.items);
+        tasks.items = NULL;
+    }
+    tasks.count = 0;
+    tasks.capacity = 0;
+}
+
+// 数据持久化
+void save_data(void) {
+    FILE *fp = fopen(DATA_FILE, "wb");
+    if (!fp) {
+        printf("警告：无法保存数据文件\n");
+        return;
+    }
+    // 先写入任务数量
+    fwrite(&tasks.count, sizeof(int), 1, fp);
+    // 再写入整个任务数组
+    fwrite(tasks.items, sizeof(Task), tasks.count, fp);
+    fclose(fp);
+}
+
+void load_data(void) {
+    FILE *fp = fopen(DATA_FILE, "rb");
+    if (!fp) return;   // 首次运行，无数据文件
+
+    int count;
+    if (fread(&count, sizeof(int), 1, fp) != 1) {
+        fclose(fp);
+        return;
+    }
+    if (count <= 0) {
+        fclose(fp);
+        return;
+    }
+
+    // 分配足够容量
+    tasks.capacity = count + 5;   // 留一点余量，免得频繁扩容
+    tasks.items = (Task*)malloc(tasks.capacity * sizeof(Task));
+    if (!tasks.items) {
+        fclose(fp);
+        return;
+    }
+    tasks.count = count;
+    fread(tasks.items, sizeof(Task), tasks.count, fp);
+    fclose(fp);
+}
+
+// 任务操作
+void add_task(void) {
+    clear_input_buffer();   // 清除菜单残留的换行符，神奇Bug+1
+
+    if (tasks.count >= tasks.capacity) {
+        if (!expend_space()) {
+            return;   // 扩容失败，放弃添加
+        }
+    }
+
+    Task *new_task = &tasks.items[tasks.count];
+    new_task->id = get_max_id() + 1;
+
+    printf("请输入任务名称：");
+    fgets(new_task->name, NAME_LEN, stdin);
+    new_task->name[strcspn(new_task->name, "\n")] = '\0';
+
+    printf("请输入任务描述：");
+    fgets(new_task->description, MAX_DESC, stdin);
+    new_task->description[strcspn(new_task->description, "\n")] = '\0';
+
+    printf("请输入任务优先级 (1低 2中 3高)：");
+    int input;
+    while (1) {
+        if (scanf("%d", &input) != 1) {
+            clear_input_buffer();
+            printf("输入无效，请输入数字 1、2 或 3：");
+            continue;
+        }
+        if (input >= PRIORITY_LOW && input <= PRIORITY_HIGH) {
+            new_task->level = input;
+            break;
+        }
+        printf("优先级必须在 1~3 之间，请重新输入：");
+    }
     clear_input_buffer();
-    int index=-1;
-    for(int i=0;i<tasks.count;i++){
-        if(tasks.items[i].id==id){
-            index=i;
+
+    new_task->completed = 0;
+    new_task->completed_time = 0;
+    new_task->total_time = 0;
+    tasks.count++;
+    printf("任务添加成功！\n");
+}
+
+// 删除任务，根据ID删除，想做个模糊匹配，但是我不会
+void delete_task(void) {
+    if (tasks.count == 0) {
+        printf("当前没有任何任务。\n");
+        return;
+    }
+
+    int id;
+    printf("请输入要删除的任务ID：");
+    scanf("%d", &id);
+    clear_input_buffer();
+
+    int index = -1;
+    for (int i = 0; i < tasks.count; i++) {
+        if (tasks.items[i].id == id) {
+            index = i;
             break;
         }
     }
-    if(index==-1){
-        printf("未找到该任务\n");
+
+    if (index == -1) {
+        printf("未找到ID为 %d 的任务。\n", id);
         return;
     }
-    for(int i=index;i<tasks.count-1;i++){
-        tasks.items[i]=tasks.items[i+1];
+
+    // 向前移动后续元素
+    for (int i = index; i < tasks.count - 1; i++) {
+        tasks.items[i] = tasks.items[i + 1];
     }
     tasks.count--;
-}
+    printf("任务已删除。\n");
 
-void list_tasks(int state){
-    printf("任务清单：\n");
-    for(int i=0;i<tasks.count;i++){
-        if(state==1||tasks.items[i].completed==0){
-            printf("ID:%d 名称:%s 描述:%s 优先级:%d 状态:%s\n",
-            tasks.items[i].id,
-            tasks.items[i].name,
-            tasks.items[i].description,
-            tasks.items[i].level,
-            tasks.items[i].completed?"已完成":"未完成");
+    // 如果空闲空间过大，可缩容
+     if (tasks.capacity > 10 && tasks.count < tasks.capacity / 4) {
+        int new_cap = tasks.capacity / 2;
+        Task *temp = (Task*)realloc(tasks.items, new_cap * sizeof(Task));
+        if (temp) {
+            tasks.items = temp;
+            tasks.capacity = new_cap;
         }
     }
 }
 
-void expend_space(){
-    //记录旧的capacity
-    int old_cap=tasks.capacity;
-    //判断扩容数量
-    int num=(tasks.capacity==0)?10:2*tasks.capacity;
-    Task* temp=realloc(tasks.items,num*sizeof(Task));
-    if(temp==NULL){
-            printf("扩容失败请重试\n");
-            return;
+// 列举任务，state=0只显示未完成，state=1显示全部
+void list_tasks(int state) {
+    if (tasks.count == 0) {
+        printf("当前没有任务。\n");
+        return;
     }
-    if(num>old_cap){
-        memset(temp+old_cap,0,(num-old_cap)*sizeof(Task));
-    }
-    tasks.items=temp;
-    tasks.capacity=num;
-}
-void init_data(){
-    tasks.items=NULL;
-    tasks.count=0;
-    tasks.capacity=0;
-}
-int get_task_id(){
-    int temp=0;
-    for(int i=0;i<tasks.count;i++){
-        if(tasks.items[i].id>temp){
-            temp=tasks.items[i].id;
+
+    printf("\n====================================\n");
+    int found = 0;
+    for (int i = 0; i < tasks.count; i++) {
+        Task *t = &tasks.items[i];
+        int show = (state == 1) || (state == 0 && t->completed == 0);
+        if (!show) continue;
+
+        found = 1;
+        const char *prio_str = (t->level == PRIORITY_LOW) ? "低" :
+                                (t->level == PRIORITY_MID) ? "中" : "高";
+        printf("ID: %d | %s | 优先级: %s | 状态: %s\n",
+               t->id, t->name, prio_str, t->completed ? "已完成" : "未完成");
+        printf("   描述: %s\n", t->description);
+        if (t->completed && t->completed_time != 0) {
+            char time_buf[64];
+            struct tm *tm_info = localtime(&t->completed_time);
+            strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", tm_info);
+            printf("   完成时间: %s\n", time_buf);
+        }
+        if (t->total_time > 0) {
+            printf("   累计专注: %d 分钟\n", t->total_time);    // 这个功能还没做，也不知道咋写，先占位
         }
     }
-    return temp;
+    if (!found) {
+        printf(state == 0 ? "没有未完成的任务。\n" : "没有符合条件的任务。\n");
+    }
+    printf("====================================\n");
 }
