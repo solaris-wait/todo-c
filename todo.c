@@ -3,6 +3,11 @@
 #include<time.h>
 #include<stdlib.h>
 
+//任务名称长度
+#define NAME_LEN 20
+//描述最多 256 个字符
+#define MAX_DESC 256
+
 #ifdef _WIN32
     #include<windows.h>
     #define CLEAR_SCREEN() system("cls")
@@ -14,40 +19,35 @@
 #endif
 
 void init_data();
-void load_data();
+// void load_data();
 void print_top(const char *p);
-//清除错误输入
+//清除错误输入 !
 void clear_input_buffer();
 //开始任务
-void start_focus();
-//新建任务
+// void start_focus();
+//新建任务 !
 void add_task();
-//删除任务
+//删除任务 !
 void delete_task();
 // 检索任务并根据状态输出
 // 1->全部任务
 // 0->未完成任务
 void list_tasks(int state);
-//展示已完成任务
-void complete_task();
+//展示已完成任务 !
+// void complete_task();
 //今日工作统计
-void show_today_report();
+// void show_today_report();
 //保存数据
-void save_data();
-//扩容函数
+// void save_data();
+//扩容函数 !
 void expend_space();
-//获取最大id
+//获取最大id !
 int get_task_id();
-//任务名称长度
-#define NAME_LEN 20
 
-#define MAX_DESC 256
-//描述最多 256 个字符
 //typedef {原类型} 新别名
 //typedef 是 C 语言里用来给已有类型起个别名的关键字
 //它的作用就是让复杂的类型名变得更短、更好理解
 //我定义了一个结构体 Task 来表示任务，可以直接使用 Task 来声明变量
-
 typedef struct {
     //任务编号
     int id;
@@ -73,27 +73,24 @@ typedef struct {
     //目前可存入的最大任务量
     int capacity;
 }Taskarr;
-//-------全局变量---------
+
+//全局变量
 Taskarr tasks;
 
-int task_count = 0;
 int main(){
     //初始化数据容器
     init_data();
     //加载本地数据
-    load_data();
+    // load_data();
     //判断用户要做什么操做
     int condition;
     do{
         CLEAR_SCREEN();
         print_top("操作清单");
-        printf("开始任务请输入0\n");
         printf("新建任务请输入1\n");
         printf("删除任务请输入2\n");
         printf("查看任务清单（全部包含已完成）任务请输入3\n");
-        printf("查看完成任务请输入4\n");
         printf("查看未完成任务请输入5\n");
-        printf("今日工作统计请输入6\n");
         printf("退出请输-1\n");
         printf("等待输入...\n");
         if(scanf("%d",&condition)!=1){
@@ -102,15 +99,11 @@ int main(){
             //清除错误输入
         }
         switch(condition){
-            case 0:start_focus();break;
             case 1:add_task(); break;
             case 2:delete_task(); break;
             case 3:list_tasks(1); break;
-            //全部任务清单
-            case 4:complete_task();break;
             case 5:list_tasks(0); break;
-            case 6:show_today_report(); break;
-            case -1:save_data(); printf("数据已保存，再见！\n"); break;
+            case -1: printf("再见！\n"); break;
             default :printf("输入数据有误请重新输入\n");
         }
         if(condition==-1){
@@ -157,6 +150,41 @@ void add_task(){
     tasks.count++;
 }
 
+void delete_task(){
+    int id;
+    printf("请输入要删除的任务id\n");
+    scanf("%d",&id);
+    clear_input_buffer();
+    int index=-1;
+    for(int i=0;i<tasks.count;i++){
+        if(tasks.items[i].id==id){
+            index=i;
+            break;
+        }
+    }
+    if(index==-1){
+        printf("未找到该任务\n");
+        return;
+    }
+    for(int i=index;i<tasks.count-1;i++){
+        tasks.items[i]=tasks.items[i+1];
+    }
+    tasks.count--;
+}
+
+void list_tasks(int state){
+    printf("任务清单：\n");
+    for(int i=0;i<tasks.count;i++){
+        if(state==1||tasks.items[i].completed==0){
+            printf("ID:%d 名称:%s 描述:%s 优先级:%d 状态:%s\n",
+            tasks.items[i].id,
+            tasks.items[i].name,
+            tasks.items[i].description,
+            tasks.items[i].level,
+            tasks.items[i].completed?"已完成":"未完成");
+        }
+    }
+}
 
 void expend_space(){
     //记录旧的capacity
