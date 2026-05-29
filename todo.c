@@ -37,6 +37,7 @@ typedef struct {
     char name[NAME_LEN];
 } Task;
 
+
 typedef struct {
     Task *items;      // 动态数组
     int count;        // 实际任务数
@@ -58,9 +59,19 @@ int get_max_id(void);
 void add_task(void);
 void delete_task(void);
 void list_tasks(int state);
+//倒计时函数
+int do_focus(int minutes);
+//开始任务
+void start_focus();
+//今日工作统计
+void show_today_report();
+//展示已完成任务
+void complete_task();
+
 
 // 主函数
 int main() {
+    // SetConsoleOutputCP(65001);   // 设置控制台为 UTF-8 编码
     init_data();
     load_data();          // 加载历史数据
 
@@ -79,6 +90,7 @@ int main() {
             condition = -2;
             clear_input_buffer();
         }
+        else clear_input_buffer();
 
         switch (condition) {
             case 1: add_task(); break;
@@ -95,7 +107,7 @@ int main() {
 
         if (condition != -1) {
             printf("\n按回车键继续...");
-            getchar();  // 消耗残留换行
+            // getchar();  // 消耗残留换行
             getchar();  // 等待用户按键
         }
     } while (condition != -1);
@@ -202,7 +214,7 @@ void load_data(void) {
 
 // 任务操作
 void add_task(void) {
-    clear_input_buffer();   // 清除菜单残留的换行符，神奇Bug+1
+    // clear_input_buffer();   // 清除菜单残留的换行符，神奇Bug+1
 
     if (tasks.count >= tasks.capacity) {
         if (!expend_space()) {
@@ -321,4 +333,84 @@ void list_tasks(int state) {
         printf(state == 0 ? "没有未完成的任务。\n" : "没有符合条件的任务。\n");
     }
     printf("====================================\n");
+}
+void start_focus(){
+    printf("请输入你要开始的任务id\n");
+    int temp_id=get_max_id();
+    int input_id=-1;
+    while(1){
+        if(scanf("%d",&input_id)!=1){
+            printf("输入有误请重更新输入\n");
+            clear_input_buffer();
+            continue;
+        }
+        if(input_id>0&&input_id<=temp_id){
+            clear_input_buffer();
+            break;
+        }
+        else{
+            printf("任务不存在，请重新输入\n");
+        }
+    }
+    Task *p=NULL;
+    for(int i=0;i<temp_id;i++){
+        if(tasks.items[i].id==input_id){
+            p=&tasks.items[i];
+        }
+    }
+    printf("当前任务为：%s\n",p->name);
+    printf("当前任务描述：%s\n",p->description);
+    if(p->completed){
+        printf("该任务已完成\n");
+        return;
+    }
+    int min=do_focus(25)/60;
+    p->total_time+=min;
+    printf("本次专注任务完成了吗？完成输入1未完成输入0\n");
+    int temp=0;
+    while(1){
+        if(scanf("%d",&temp)!=1){
+            printf("输入有误请重新输入\n");
+            clear_input_buffer();
+            continue;
+        }
+        if(temp==0||temp==1){
+            clear_input_buffer();
+            break;
+        }
+        else{
+            printf("状态不存在\n");
+        }
+    }
+    p->completed=temp;
+    if(p->completed==1){
+        p->completed_time=time(NULL);
+        printf("恭喜你完成任务\n");
+    }
+    save_data();
+}
+int do_focus(int minutes){
+    int total_second=minutes*60;
+    int var_time=total_second;
+    while(var_time>0){
+        int min=var_time/60;
+        int sec=var_time%60;
+        //进度长度
+        int schedule=20;
+        //完成进度
+        int full=(total_second-var_time)*schedule/total_second;
+        printf("\r[任务进行中]: %02d:%02d [",min,sec);
+        for(int i=0;i<schedule;i++){
+            if(i==full-1){
+                printf("》");
+            }else{
+                printf(i<full?"=":" ");
+            }
+        }
+        printf("]");
+        fllust(stdout);
+        Sleep(1000);
+        var_time--;
+    }
+    return total_second-var_time;
 }
