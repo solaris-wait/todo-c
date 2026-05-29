@@ -82,6 +82,7 @@ int main() {
         printf("新建任务请输入1\n");
         printf("删除任务请输入2\n");
         printf("查看全部任务（含已完成）请输入3\n");
+        printf("开始专注请输入4\n");
         printf("查看未完成任务请输入5\n");
         printf("退出请输-1或者Ctrl+C\n");
         printf("等待输入...\n");
@@ -96,6 +97,7 @@ int main() {
             case 1: add_task(); break;
             case 2: delete_task(); break;
             case 3: list_tasks(1); break;
+            case 4: start_focus(); break;
             case 5: list_tasks(0); break;
             case -1:
                 save_data();
@@ -408,8 +410,8 @@ int do_focus(int minutes){
             }
         }
         printf("]");
-        fllust(stdout);
-        Sleep(1000);
+        fflush(stdout);
+        SLEEP(1000);
         var_time--;
     }
     return total_second-var_time;
