@@ -67,7 +67,8 @@ void start_focus();
 void show_today_report();
 //展示已完成任务
 void complete_task();
-
+//创建目前任务数量的动态指针数组，方便按优先级排序输出
+Task** task_show_arr();
 
 // 主函数
 int main() {
@@ -415,4 +416,68 @@ int do_focus(int minutes){
         var_time--;
     }
     return total_second-var_time;
+}
+Task** task_show_arr(){
+    if(tasks.count==0) return NULL;
+    Task **p = calloc(tasks.count,sizeof(Task *));
+    if(p==NULL) return NULL;
+    for(int i=0;i<tasks.count;i++){
+        p[i]=&tasks.items[i];
+    }
+    for(int i=0;i<tasks.count-1;i++){
+        for(int j=0;j<tasks.count-i-1;j++){
+            if(p[j]->level < p[j+1]->level){
+                Task*temp=p[j];
+                p[j]=p[j+1];
+                p[j+1]=temp;
+            }
+        }
+    }
+    return p;
+}
+void complete_task(){
+    Task** show=task_show_arr();
+    printf("=======================\n");
+    for(int i=0;i<tasks.count;i++){
+        if(show[i]->completed==1){
+            printf("任务id: %d\n",show[i]->id);
+            printf("任务名称: %s\n",show[i]->name);
+            printf("任务描述: %s\n",show[i]->description);
+            printf("任务总时长: %d minute\n",show[i]->total_time);
+            printf("任务等级: %d \n",show[i]->level);
+            char time_buf[64];
+            struct tm *output=localtime(&show[i]->completed_time);
+            strftime(time_buf,sizeof(time_buf),"%Y-%m-%d %H:%M:%S",output);
+            printf("完成时间：%s",time_buf);
+            printf("-----------------\n");
+        }
+    }
+    printf("=======================\n");
+    free(show);
+}
+void show_today_report(){
+    Task**show=task_show_arr();
+    time_t now=time(NULL);
+    struct tm *tmp = localtime(&now); 
+    struct tm today_tm;
+    today_tm=*tmp; 
+    today_tm.tm_hour=0;
+    today_tm.tm_min=0;
+    today_tm.tm_sec=0;
+    time_t start_time=mktime(&today_tm);
+    printf("今日任务总结\n");
+    printf("========================\n");
+    printf("任务id    任务名称    完成时间    任务累计时长\n");
+    for(int i=0;i<tasks.count;i++){
+        if(show[i]->completed==1){
+            if(start_time<=show[i]->completed_time&&show[i]->completed_time<start_time+86400){
+                char com_time[64];
+                struct tm *task_time=localtime(&show[i]->completed_time);
+                strftime(com_time,sizeof(com_time),"%Y-%m-%d %H:%M:%S",task_time);
+                printf("%d\t%s\t%s\t%d\n",show[i]->id,show[i]->name,com_time,show[i]->total_time);
+            }
+        }
+    }
+    printf("========================\n");
+    free(show);
 }
