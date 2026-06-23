@@ -60,15 +60,15 @@ void add_task(void);
 void delete_task(void);
 void list_tasks(int state);
 //倒计时函数
-int do_focus(int minutes);
+int focus_bar(int minutes);
 //开始任务
 void start_focus();
-//今日工作统计
-void show_today_report();
 //展示已完成任务
 void complete_task();
 //创建目前任务数量的动态指针数组，方便按优先级排序输出
 Task** task_show_arr();
+//显示报告
+void show_today_report();
 
 // 主函数
 int main() {
@@ -80,12 +80,13 @@ int main() {
     do {
         CLEAR_SCREEN();
         print_top("操作清单");
-        printf("新建任务请输入1\n");
-        printf("删除任务请输入2\n");
-        printf("查看全部任务（含已完成）请输入3\n");
-        printf("开始专注请输入4\n");
-        printf("查看未完成任务请输入5\n");
-        printf("退出请输-1或者Ctrl+C\n");
+        printf("新建任务请输入 1\n");
+        printf("删除任务请输入 2\n");
+        printf("查看全部任务请输入 3\n");
+        printf("查看未完成任务请输入 4\n");
+        printf("开始专注请输入 5\n");
+        printf("查看今日报告请输入 6\n");
+        printf("保存并退出请输 -1\n");
         printf("等待输入...\n");
 
         if (scanf("%d", &condition) != 1) {
@@ -98,8 +99,9 @@ int main() {
             case 1: add_task(); break;
             case 2: delete_task(); break;
             case 3: list_tasks(1); break;
-            case 4: start_focus(); break;
-            case 5: list_tasks(0); break;
+            case 4: list_tasks(0); break;
+            case 5: start_focus(); break;
+            case 6: show_today_report(); break;
             case -1:
                 save_data();
                 printf("数据已保存，再见！\n");
@@ -110,7 +112,6 @@ int main() {
 
         if (condition != -1) {
             printf("\n按回车键继续...");
-            // getchar();  // 消耗残留换行
             getchar();  // 等待用户按键
         }
     } while (condition != -1);
@@ -217,8 +218,6 @@ void load_data(void) {
 
 // 任务操作
 void add_task(void) {
-    // clear_input_buffer();   // 清除菜单残留的换行符，神奇Bug+1
-
     if (tasks.count >= tasks.capacity) {
         if (!expend_space()) {
             return;   // 扩容失败，放弃添加
@@ -226,7 +225,7 @@ void add_task(void) {
     }
 
     Task *new_task = &tasks.items[tasks.count];
-    new_task->id = get_max_id() + 1;
+    new_task->id = tasks.count + 1;
 
     printf("请输入任务名称：");
     fgets(new_task->name, NAME_LEN, stdin);
@@ -259,10 +258,10 @@ void add_task(void) {
     printf("任务添加成功！\n");
 }
 
-// 删除任务，根据ID删除，想做个模糊匹配，但是我不会
+// 删除任务，根据ID删除
 void delete_task(void) {
     if (tasks.count == 0) {
-        printf("当前没有任何任务。\n");
+        printf("当前没有任何任务\n");
         return;
     }
 
@@ -280,7 +279,7 @@ void delete_task(void) {
     }
 
     if (index == -1) {
-        printf("未找到ID为 %d 的任务。\n", id);
+        printf("未找到ID为 %d 的任务\n", id);
         return;
     }
 
@@ -289,7 +288,11 @@ void delete_task(void) {
         tasks.items[i] = tasks.items[i + 1];
     }
     tasks.count--;
-    printf("任务已删除。\n");
+    // 删除后重新整理 ID，使任务编号保持连续
+    for (int i = 0; i < tasks.count; i++) {
+        tasks.items[i].id = i + 1;
+    }
+    printf("任务已删除\n");
 
     // 如果空闲空间过大，可缩容
      if (tasks.capacity > 10 && tasks.count < tasks.capacity / 4) {
@@ -305,8 +308,8 @@ void delete_task(void) {
 // 列举任务，state=0只显示未完成，state=1显示全部
 void list_tasks(int state) {
     if (tasks.count == 0) {
-        printf("当前没有任务。\n");
-        return;
+      printf("当前没有任务\n");
+      return;
     }
 
     printf("\n====================================\n");
@@ -329,7 +332,7 @@ void list_tasks(int state) {
             printf("   完成时间: %s\n", time_buf);
         }
         if (t->total_time > 0) {
-            printf("   累计专注: %d 分钟\n", t->total_time);    // 这个功能还没做，也不知道咋写，先占位
+            printf("   累计专注: %d 分钟\n", t->total_time);
         }
     }
     if (!found) {
@@ -337,17 +340,18 @@ void list_tasks(int state) {
     }
     printf("====================================\n");
 }
+
 void start_focus(){
     printf("请输入你要开始的任务id\n");
     int temp_id=get_max_id();
     int input_id=-1;
     while(1){
         if(scanf("%d",&input_id)!=1){
-            printf("输入有误请重更新输入\n");
+            printf("输入有误请重新输入\n");
             clear_input_buffer();
             continue;
         }
-        if(input_id>0&&input_id<=temp_id){
+        if(input_id>0 && input_id<=temp_id){
             clear_input_buffer();
             break;
         }
@@ -356,10 +360,15 @@ void start_focus(){
         }
     }
     Task *p=NULL;
-    for(int i=0;i<temp_id;i++){
+    for(int i=0; i<tasks.count; i++){
         if(tasks.items[i].id==input_id){
             p=&tasks.items[i];
+            break;
         }
+    }
+    if(p == NULL){
+        printf("任务未找到\n");
+        return;
     }
     printf("当前任务为：%s\n",p->name);
     printf("当前任务描述：%s\n",p->description);
@@ -367,9 +376,19 @@ void start_focus(){
         printf("该任务已完成\n");
         return;
     }
-    int min=do_focus(25)/60;
+    int m;
+    printf("输入整数专注时间（分钟）\n");
+    while(1){
+        if(scanf("%d",&m)==1 && m>0){
+            break;
+        }else {
+            printf("输入有误，请输入正整数\n");
+            clear_input_buffer();
+        }
+    }
+    int min=focus_bar(m)/60;
     p->total_time+=min;
-    printf("本次专注任务完成了吗？完成输入1未完成输入0\n");
+    printf("\n本次专注任务完成了吗？完成输入1，未完成输入0\n");
     int temp=0;
     while(1){
         if(scanf("%d",&temp)!=1){
@@ -382,32 +401,31 @@ void start_focus(){
             break;
         }
         else{
-            printf("状态不存在\n");
+            printf("状态不存在，请输入0或1\n");
         }
     }
     p->completed=temp;
     if(p->completed==1){
         p->completed_time=time(NULL);
-        printf("恭喜你完成任务\n");
+        printf("恭喜你完成任务！\n");
     }
     save_data();
 }
-int do_focus(int minutes){
-    int total_second=minutes*60;
-    int var_time=total_second;
-    while(var_time>0){
-        int min=var_time/60;
-        int sec=var_time%60;
-        //进度长度
-        int schedule=20;
-        //完成进度
-        int full=(total_second-var_time)*schedule/total_second;
-        printf("\r[任务进行中]: %02d:%02d [",min,sec);
-        for(int i=0;i<schedule;i++){
-            if(i==full-1){
+
+int focus_bar(int minutes){
+    int total_second = minutes * 60;
+    int var_time = total_second;
+    while(var_time >= 0){
+        int min = var_time / 60;
+        int sec = var_time % 60;
+        int schedule = 20;
+        int full = (total_second - var_time) * schedule / total_second;
+        printf("\r[任务进行中]: %02d:%02d [", min, sec);
+        for(int i = 0; i < schedule; i++){
+            if(i == full){
                 printf("》");
             }else{
-                printf(i<full?"=":" ");
+                printf(i < full ? "=" : " ");
             }
         }
         printf("]");
@@ -415,11 +433,12 @@ int do_focus(int minutes){
         SLEEP(1000);
         var_time--;
     }
-    return total_second-var_time;
+    return total_second - var_time;
 }
+
 Task** task_show_arr(){
     if(tasks.count==0) return NULL;
-    Task **p = calloc(tasks.count,sizeof(Task *));
+    Task **p = (Task **)calloc(tasks.count, sizeof(Task *));
     if(p==NULL) return NULL;
     for(int i=0;i<tasks.count;i++){
         p[i]=&tasks.items[i];
@@ -427,56 +446,76 @@ Task** task_show_arr(){
     for(int i=0;i<tasks.count-1;i++){
         for(int j=0;j<tasks.count-i-1;j++){
             if(p[j]->level < p[j+1]->level){
-                Task*temp=p[j];
-                p[j]=p[j+1];
-                p[j+1]=temp;
+                Task *temp = p[j];
+                p[j] = p[j+1];
+                p[j+1] = temp;
             }
         }
     }
     return p;
 }
+
 void complete_task(){
-    Task** show=task_show_arr();
+    Task** show = task_show_arr();
+    if(show == NULL){
+        printf("没有任务\n");
+        return;
+    }
     printf("=======================\n");
+    int found = 0;
     for(int i=0;i<tasks.count;i++){
         if(show[i]->completed==1){
+            found = 1;
             printf("任务id: %d\n",show[i]->id);
             printf("任务名称: %s\n",show[i]->name);
             printf("任务描述: %s\n",show[i]->description);
             printf("任务总时长: %d minute\n",show[i]->total_time);
             printf("任务等级: %d \n",show[i]->level);
             char time_buf[64];
-            struct tm *output=localtime(&show[i]->completed_time);
-            strftime(time_buf,sizeof(time_buf),"%Y-%m-%d %H:%M:%S",output);
-            printf("完成时间：%s",time_buf);
+            struct tm *output = localtime(&show[i]->completed_time);
+            strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", output);
+            printf("完成时间：%s\n", time_buf);
             printf("-----------------\n");
         }
+    }
+    if(!found){
+        printf("暂无已完成任务\n");
     }
     printf("=======================\n");
     free(show);
 }
+
 void show_today_report(){
-    Task**show=task_show_arr();
-    time_t now=time(NULL);
+    Task** show = task_show_arr();
+    if(show == NULL){
+        printf("没有任务\n");
+        return;
+    }
+    time_t now = time(NULL);
     struct tm *tmp = localtime(&now); 
     struct tm today_tm;
-    today_tm=*tmp; 
-    today_tm.tm_hour=0;
-    today_tm.tm_min=0;
-    today_tm.tm_sec=0;
-    time_t start_time=mktime(&today_tm);
+    today_tm = *tmp; 
+    today_tm.tm_hour = 0;
+    today_tm.tm_min = 0;
+    today_tm.tm_sec = 0;
+    time_t start_time = mktime(&today_tm);
     printf("今日任务总结\n");
     printf("========================\n");
-    printf("任务id    任务名称    完成时间    任务累计时长\n");
+    printf("任务id\t任务名称\t完成时间\t\t任务累计时长\n");
+    int found = 0;
     for(int i=0;i<tasks.count;i++){
         if(show[i]->completed==1){
-            if(start_time<=show[i]->completed_time&&show[i]->completed_time<start_time+86400){
+            if(start_time <= show[i]->completed_time && show[i]->completed_time < start_time + 86400){
+                found = 1;
                 char com_time[64];
-                struct tm *task_time=localtime(&show[i]->completed_time);
-                strftime(com_time,sizeof(com_time),"%Y-%m-%d %H:%M:%S",task_time);
-                printf("%d\t%s\t%s\t%d\n",show[i]->id,show[i]->name,com_time,show[i]->total_time);
+                struct tm *task_time = localtime(&show[i]->completed_time);
+                strftime(com_time, sizeof(com_time), "%Y-%m-%d %H:%M:%S", task_time);
+                printf("%d\t%s\t\t%s\t%d\n", show[i]->id, show[i]->name, com_time, show[i]->total_time);
             }
         }
+    }
+    if(!found){
+        printf("今日暂无完成任务\n");
     }
     printf("========================\n");
     free(show);
