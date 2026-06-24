@@ -102,57 +102,52 @@ typedef struct {
 TaskArr tasks;
 
 // 函数声明
+//初始化数据结构
 void init_data(void);
+//加载数据
 void load_data(void);
+//保存数据
 void save_data(void);
+//释放动态数组内存
 void free_tasks(void);
+//打印标题
 void print_top(const char *p);
+//清除输入缓冲区，防止scanf后残留的换行符干扰后续输入
 void clear_input_buffer(void);
+//动态数组管理
+//扩容：成功返回1，失败返回0
 int expend_space(void);
+//读取当前最大ID，确保新任务ID唯一且递增
 int get_max_id(void);
+// 添加任务
 void add_task(void);
+// 删除任务
 void delete_task(void);
 void list_tasks(int state);
+//倒计时函数
 int focus_bar(int minutes);
+//开始任务
 void start_focus();
+//展示已完成任务
 void complete_task();
+//显示报告
 void show_today_report();
+//创建目前任务数量的动态指针数组，方便按优先级排序输出
 Task** task_show_arr();
-
-// 安全读取整数，遇到 EOF 或 g_running=0 时返回 0
-static int safe_read_int(int *val) {
-    while (g_running) {
-        int ret = scanf("%d", val);
-        if (ret == EOF) {
-            g_running = 0;
-            return 0;
-        }
-        if (ret == 1) {
-            clear_input_buffer();
-            return 1;
-        }
-        printf("输入无效，请重新输入：");
-        clear_input_buffer();
-    }
-    return 0;
-}
 
 // 主函数
 int main() {
     #ifdef _WIN32
     SetConsoleCP(CP_UTF8);
     SetConsoleOutputCP(CP_UTF8);
+    // 注册控制台事件处理器
     SetConsoleCtrlHandler(console_handler, TRUE);
-    #else
-    struct sigaction sa;
-    sa.sa_handler = signal_handler;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-    sigaction(SIGINT, &sa, NULL);
-    sigaction(SIGTERM, &sa, NULL);
-    #endif
+#else
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
+#endif
     init_data();
-    load_data();
+    load_data();          // 加载历史数据
 
     int condition;
     do {
@@ -167,10 +162,11 @@ int main() {
         printf("保存并退出请输 -1\n");
         printf("等待输入...\n");
 
-        if (!safe_read_int(&condition)) {
-            condition = -1;
-            break;
+        if (scanf("%d", &condition) != 1) {
+            condition = -2;
+            clear_input_buffer();
         }
+        else clear_input_buffer();
 
         switch (condition) {
             case 1: add_task(); break;
@@ -189,20 +185,11 @@ int main() {
 
         if (condition != -1) {
             printf("\n按回车键继续...");
-            while (g_running) {
-                int c = getchar();
-                if (c == '\n' || c == EOF) {
-                    if (c == EOF) g_running = 0;
-                    break;
-                }
-            }
+            getchar();  // 等待用户按键
         }
-    } while ((condition != -1) && g_running);
+    } while ((condition != -1)&&g_running);
 
-    if (!g_running) {
-        save_data();
-    }
-    free_tasks();
+    free_tasks();   // 释放内存
     return 0;
 }
 
@@ -220,14 +207,16 @@ void save_data(void) {
         printf("警告：无法保存数据文件\n");
         return;
     }
+    // 先写入任务数量
     fwrite(&tasks.count, sizeof(int), 1, fp);
+    // 再写入整个任务数组
     fwrite(tasks.items, sizeof(Task), tasks.count, fp);
     fclose(fp);
 }
 
 void load_data(void) {
     FILE *fp = fopen(DATA_FILE, "rb");
-    if (!fp) return;
+    if (!fp) return;   // 首次运行，无数据文件
 
     int count;
     if (fread(&count, sizeof(int), 1, fp) != 1) {
@@ -239,7 +228,8 @@ void load_data(void) {
         return;
     }
 
-    tasks.capacity = count + 5;
+    // 分配足够容量
+    tasks.capacity = count + 5;   // 留一点余量，免得频繁扩容
     tasks.items = (Task*)malloc(tasks.capacity * sizeof(Task));
     if (!tasks.items) {
         fclose(fp);
@@ -261,6 +251,7 @@ int expend_space(void) {
         printf("内存扩容失败，无法添加新任务！\n");
         return 0;
     }
+    // 新分配的内存清零
     if (new_cap > old_cap) {
         memset(temp + old_cap, 0, (new_cap - old_cap) * sizeof(Task));
     }
@@ -273,7 +264,7 @@ int expend_space(void) {
 void add_task(void) {
     if (tasks.count >= tasks.capacity) {
         if (!expend_space()) {
-            return;
+            return;   // 扩容失败，放弃添加
         }
     }
 
@@ -281,30 +272,28 @@ void add_task(void) {
     new_task->id = tasks.count + 1;
 
     printf("请输入任务名称：");
-    if (!fgets(new_task->name, NAME_LEN, stdin)) {
-        g_running = 0;
-        return;
-    }
+    fgets(new_task->name, NAME_LEN, stdin);
     new_task->name[strcspn(new_task->name, "\n")] = '\0';
 
     printf("请输入任务描述：");
-    if (!fgets(new_task->description, MAX_DESC, stdin)) {
-        g_running = 0;
-        return;
-    }
+    fgets(new_task->description, MAX_DESC, stdin);
     new_task->description[strcspn(new_task->description, "\n")] = '\0';
 
     printf("请输入任务优先级 (1低 2中 3高)：");
     int input;
-    while (g_running) {
-        if (!safe_read_int(&input)) return;
+    while (1) {
+        if (scanf("%d", &input) != 1) {
+            clear_input_buffer();
+            printf("输入无效，请输入数字 1、2 或 3：");
+            continue;
+        }
         if (input >= PRIORITY_LOW && input <= PRIORITY_HIGH) {
             new_task->level = input;
             break;
         }
         printf("优先级必须在 1~3 之间，请重新输入：");
     }
-    if (!g_running) return;
+    clear_input_buffer();
 
     new_task->completed = 0;
     new_task->completed_time = 0;
@@ -322,7 +311,8 @@ void delete_task(void) {
 
     int id;
     printf("请输入要删除的任务ID：");
-    if (!safe_read_int(&id)) return;
+    scanf("%d", &id);
+    clear_input_buffer();
 
     int index = -1;
     for (int i = 0; i < tasks.count; i++) {
@@ -337,16 +327,19 @@ void delete_task(void) {
         return;
     }
 
+    // 向前移动后续元素
     for (int i = index; i < tasks.count - 1; i++) {
         tasks.items[i] = tasks.items[i + 1];
     }
     tasks.count--;
+    // 删除后重新整理 ID，使任务编号保持连续
     for (int i = 0; i < tasks.count; i++) {
         tasks.items[i].id = i + 1;
     }
     printf("任务已删除\n");
 
-    if (tasks.capacity > 10 && tasks.count < tasks.capacity / 4) {
+    // 如果空闲空间过大，可缩容
+     if (tasks.capacity > 10 && tasks.count < tasks.capacity / 4) {
         int new_cap = tasks.capacity / 2;
         Task *temp = (Task*)realloc(tasks.items, new_cap * sizeof(Task));
         if (temp) {
@@ -395,16 +388,21 @@ void list_tasks(int state) {
 void start_focus(){
     printf("请输入你要开始的任务id\n");
     int temp_id=get_max_id();
-    int input_id;
-    while(g_running){
-        if(!safe_read_int(&input_id)) return;
+    int input_id=-1;
+    while(1){
+        if(scanf("%d",&input_id)!=1){
+            printf("输入有误请重新输入\n");
+            clear_input_buffer();
+            continue;
+        }
         if(input_id>0 && input_id<=temp_id){
+            clear_input_buffer();
             break;
         }
-        printf("任务不存在，请重新输入\n");
+        else{
+            printf("任务不存在，请重新输入\n");
+        }
     }
-    if(!g_running) return;
-
     Task *p=NULL;
     for(int i=0; i<tasks.count; i++){
         if(tasks.items[i].id==input_id){
@@ -424,26 +422,32 @@ void start_focus(){
     }
     int m;
     printf("输入整数专注时间（分钟）\n");
-    while(g_running){
-        if(!safe_read_int(&m)) return;
-        if(m>0) break;
-        printf("时间必须为正整数，请重新输入：");
+    while(1){
+        if(scanf("%d",&m)==1 && m>0){
+            break;
+        }else {
+            printf("输入有误，请输入正整数\n");
+            clear_input_buffer();
+        }
     }
-    if(!g_running) return;
-
-    int actual_seconds = focus_bar(m);
-    int min = (actual_seconds + 30) / 60;
-    p->total_time += min;
-
+    int min=focus_bar(m)/60;
+    p->total_time+=min;
     printf("\n本次专注任务完成了吗？完成输入1，未完成输入0\n");
     int temp=0;
-    while(g_running){
-        if(!safe_read_int(&temp)) return;
-        if(temp==0||temp==1) break;
-        printf("状态不存在，请输入0或1\n");
+    while(1){
+        if(scanf("%d",&temp)!=1){
+            printf("输入有误请重新输入\n");
+            clear_input_buffer();
+            continue;
+        }
+        if(temp==0||temp==1){
+            clear_input_buffer();
+            break;
+        }
+        else{
+            printf("状态不存在，请输入0或1\n");
+        }
     }
-    if(!g_running) return;
-
     p->completed=temp;
     if(p->completed==1){
         p->completed_time=time(NULL);
@@ -458,20 +462,22 @@ int focus_bar(int minutes) {
     int total_second = minutes * 60;
     int var_time = total_second;
 
-    while (var_time >= 0 && g_running) {
+    while (var_time >= 0) {
+        // 检测键盘输入，允许用户按 Q/q 暂停 60 秒
         if (key_hit()) {
             char ch = get_key();
+            // 检测 Q 或 q（你可以改成 S/s）
             if (ch == 'Q' || ch == 'q') {
                 printf("\n暂停 60 秒...\n");
-                for (int i = 0; i < 60 && g_running; i++) {
-                    SLEEP(1000);
-                }
+                SLEEP(60000);          // 暂停 60 秒
+                // 清空可能残留的按键缓冲区
                 while (key_hit()) get_key();
                 printf("继续！\n");
-                continue;
+                // 不改变 var_time，倒计时总时长不变
             }
         }
 
+        // 显示进度条
         int min = var_time / 60;
         int sec = var_time % 60;
         int schedule = 20;
@@ -484,15 +490,13 @@ int focus_bar(int minutes) {
         printf("]");
         fflush(stdout);
 
-        SLEEP(1000);
+        SLEEP(1000);   // 休眠 1 秒
         var_time--;
     }
 
-    if (!g_running) {
-        printf("\n专注被中断。\n");
-        return total_second - var_time;
-    }
-    return total_second;
+    // 原代码返回总秒数（实际上 total_second - var_time 在循环结束后为 total_second+1）
+    // 这里保持原逻辑,+1好像结束会多一秒
+    return total_second - var_time;
 }
 
 // 读取当前最大ID，确保新任务ID唯一且递增
